@@ -1,9 +1,9 @@
 package parser
 
 import (
-	"encoding/binary"
 	"Havoc/pkg/common"
 	"Havoc/pkg/common/crypt"
+	"encoding/binary"
 )
 
 type ReadType int
@@ -29,35 +29,35 @@ func NewParser(buffer []byte) *Parser {
 }
 
 func (p *Parser) CanIRead(ReadTypes []ReadType) bool {
-	integer   := make([]byte, 4)
-	number    := 0
+	integer := make([]byte, 4)
+	number := 0
 	BytesRead := 0
 	TotalSize := p.Length()
-	
+
 	for _, Type := range ReadTypes {
 		switch Type {
 		case ReadInt32:
-			if TotalSize - BytesRead < 4 {
+			if TotalSize-BytesRead < 4 {
 				return false
 			}
 			BytesRead += 4
 		case ReadInt64:
-			if TotalSize - BytesRead < 8 {
+			if TotalSize-BytesRead < 8 {
 				return false
 			}
 			BytesRead += 8
 		case ReadPointer:
-			if TotalSize - BytesRead < 8 {
+			if TotalSize-BytesRead < 8 {
 				return false
 			}
 			BytesRead += 8
 		case ReadBool:
-			if TotalSize - BytesRead < 4 {
+			if TotalSize-BytesRead < 4 {
 				return false
 			}
 			BytesRead += 4
 		case ReadBytes:
-			if TotalSize - BytesRead < 4 {
+			if TotalSize-BytesRead < 4 {
 				return false
 			}
 			for i := range integer {
@@ -70,7 +70,7 @@ func (p *Parser) CanIRead(ReadTypes []ReadType) bool {
 				number = int(binary.LittleEndian.Uint32(integer))
 			}
 			BytesRead += 4
-			if TotalSize - BytesRead < number {
+			if TotalSize-BytesRead < number {
 				return false
 			}
 			BytesRead += number
@@ -87,13 +87,8 @@ func (p *Parser) ParseInt32() int {
 	}
 
 	if p.Length() >= 4 {
-		if p.Length() == 4 {
-			copy(integer, p.buffer[:p.Length()])
-			p.buffer = []byte{}
-		} else {
-			copy(integer, p.buffer[:p.Length()-4])
-			p.buffer = p.buffer[4:]
-		}
+		copy(integer, p.buffer[:4])
+		p.buffer = p.buffer[4:]
 	}
 
 	if p.bigEndian {
@@ -111,13 +106,8 @@ func (p *Parser) ParseInt64() int64 {
 	}
 
 	if p.Length() >= 8 {
-		if p.Length() == 8 {
-			copy(integer, p.buffer[:p.Length()])
-			p.buffer = []byte{}
-		} else {
-			copy(integer, p.buffer[:p.Length()-8])
-			p.buffer = p.buffer[8:]
-		}
+		copy(integer, p.buffer[:8])
+		p.buffer = p.buffer[8:]
 	}
 
 	if p.bigEndian {
@@ -135,13 +125,8 @@ func (p *Parser) ParseBool() bool {
 	}
 
 	if p.Length() >= 4 {
-		if p.Length() == 4 {
-			copy(integer, p.buffer[:p.Length()])
-			p.buffer = []byte{}
-		} else {
-			copy(integer, p.buffer[:p.Length()-4])
-			p.buffer = p.buffer[4:]
-		}
+		copy(integer, p.buffer[:4])
+		p.buffer = p.buffer[4:]
 	}
 
 	if p.bigEndian {

